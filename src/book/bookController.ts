@@ -9,7 +9,7 @@ const createBook = async (req: Request, res: Response, next: NextFunction) => {
   const { title, genre } = req.body;
 
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-  const coverImageMimeType = files.coverImage[0].mimetype.split("/").at(-1);
+  const coverImageMimeType = files.coverImage[0].mimetype.split("/").at(-1); //mimetype: image/jpeg => jpeg
   const fileName = files.coverImage[0].filename;
   const filePath = path.resolve(
     __dirname,
@@ -41,8 +41,10 @@ const createBook = async (req: Request, res: Response, next: NextFunction) => {
       }
     );
 
-    // console.log("bookFileUploadResult", bookFileUploadResult);
-    // console.log("uploadResult", uploadResult);
+    console.log("bookFileUploadResult", bookFileUploadResult);
+    console.log("uploadResult", uploadResult);
+    // @ts-ignore
+    console.log("userId", req.userId);
 
     const newBook = await bookModel.create({
       title,

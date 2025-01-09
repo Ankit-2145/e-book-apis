@@ -7,7 +7,7 @@ const bookRouter = express.Router();
 
 const upload = multer({
   dest: path.resolve(__dirname, "../../public/data/uploads"),
-  limits: { fieldSize: 3e7 }, // 30MB
+  limits: { fieldSize: 1e7 }, // 10MB
 });
 
 // routes

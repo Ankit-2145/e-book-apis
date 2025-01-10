@@ -65,4 +65,10 @@ const createBook = async (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-export { createBook };
+const updateBook = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {};
+
+export { createBook, updateBook };

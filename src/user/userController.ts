@@ -9,43 +9,55 @@ import { User } from "./userTypes";
 const createUser = async (req: Request, res: Response, next: NextFunction) => {
   const { name, email, password } = req.body;
 
-  //validation
+  // Input validation
   if (!name || !email || !password) {
-    const error = createHttpError(400, "All fields are required");
-
-    return next(error);
+    return next(createHttpError(400, "All fields are required"));
   }
 
-  // Database call
+  // Email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return next(createHttpError(400, "Invalid email format"));
+  }
+
+  // Password strength validation
+  if (password.length < 8) {
+    return next(createHttpError(400, "Password must be at least 8 characters"));
+  }
+
+  // Check existing user
   try {
-    const user = await userModel.findOne({ email });
-    if (user) {
-      const error = createHttpError(400, "User already exists with this email");
-      return next(error);
+    const existingUser = await userModel.findOne({ email });
+    if (existingUser) {
+      return next(createHttpError(409, "User already exists with this email"));
     }
   } catch (err) {
-    return next(createHttpError(500, "Error while getting user"));
+    return next(createHttpError(500, "Error checking existing user"));
   }
 
-  // password -> hash
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  let newUser: User;
-
+  // Hash password
+  let hashedPassword: string;
   try {
-    // creating User
+    hashedPassword = await bcrypt.hash(password, 10);
+  } catch (err) {
+    return next(createHttpError(500, "Error hashing password"));
+  }
+
+  // Create user
+  let newUser: User;
+  try {
     newUser = await userModel.create({
       name,
       email,
       password: hashedPassword,
     });
   } catch (err) {
-    return next(createHttpError(500, "Error while creating user"));
+    return next(createHttpError(500, "Error creating user"));
   }
 
+  // Generate token
   try {
-    // Token generation JWT
-    const token = sign(
+    const token = await sign(
       {
         sub: newUser._id,
       },
@@ -54,12 +66,13 @@ const createUser = async (req: Request, res: Response, next: NextFunction) => {
         expiresIn: "7d",
       }
     );
-    //Response
+
     res.status(201).json({
       accessToken: token,
+      message: "User created successfully",
     });
   } catch (err) {
-    return next(createHttpError(500, "Error while signing the JWT token"));
+    return next(createHttpError(500, "Error generating token"));
   }
 };
 
@@ -70,32 +83,50 @@ const loginUser = async (req: Request, res: Response, next: NextFunction) => {
     return next(createHttpError(400, "All fields are required"));
   }
 
-  const user = await userModel.findOne({ email });
+  let user: User | null;
 
-  if (!user) {
-    return next(createHttpError(404, "User not found"));
-  }
-
-  const isMatch = await bcrypt.compare(password, user.password);
-
-  if (!isMatch) {
-    return next(createHttpError(400, "Username or password incorrect!"));
-  }
-  // add try catch : Todo
-  // create access token
-  const token = sign(
-    {
-      sub: user._id,
-    },
-    config.jwtSecret as string,
-    {
-      expiresIn: "7d",
+  // First try-catch: Database operations
+  try {
+    user = await userModel.findOne({ email });
+    if (!user) {
+      return next(createHttpError(404, "User not found"));
     }
-  );
+  } catch (err) {
+    // Specific error for database operations
+    return next(createHttpError(500, "Database error occurred"));
+  }
 
-  res.json({
-    accessToken: token,
-  });
+  // Second try-catch: Password comparison
+  try {
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return next(createHttpError(401, "Invalid credentials"));
+    }
+  } catch (err) {
+    // Specific error for password comparison issues
+    return next(createHttpError(500, "Error during password validation"));
+  }
+
+  // Third try-catch: Token generation
+  try {
+    const token = await sign(
+      {
+        sub: user._id,
+      },
+      config.jwtSecret as string,
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    res.json({
+      accessToken: token,
+      message: "Login successful",
+    });
+  } catch (err) {
+    // Specific error for token generation issues
+    return next(createHttpError(500, "Error generating access token"));
+  }
 };
 
 export { createUser, loginUser };
